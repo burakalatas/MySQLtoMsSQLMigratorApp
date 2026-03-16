@@ -1,0 +1,96 @@
+﻿@page
+@model IndexModel
+@{
+    ViewData["Title"] = "Veritabanı Taşıma";
+}
+
+<div class="container mt-5">
+    <h2>From MySQL to MSSQL Migration Tool</h2>
+    <hr />
+
+    <form method="post" asp-page-handler="StartMigration" id="migrationForm">
+        <div class="row mb-3">
+            <div class="col-md-6">
+                <label>MySQL Connection String</label>
+                <input asp-for="MySqlConn" class="form-control" required placeholder="Server=...;Database=...;Uid=...;Pwd=..." />
+            </div>
+            <div class="col-md-6">
+                <label>MSSQL Connection String</label>
+                <input asp-for="MsSqlConn" class="form-control" required placeholder="Server=...;Database=...;User Id=...;Password=..." />
+            </div>
+        </div>
+        <button type="submit" class="btn btn-primary" id="btnStart">Start</button>
+    </form>
+
+    <div id="progressSection" class="mt-4 p-4 border rounded bg-light" style="display:none;">
+        <h4>Progress Status</h4>
+        <p><strong>Active Table:</strong> <span id="lblTable">-</span></p>
+        
+        <div class="progress" style="height: 30px;">
+            <div id="progressBar" class="progress-bar progress-bar-striped progress-bar-animated bg-success"
+                 role="progressbar" style="width: 0%;">
+                <span id="lblCount">0 / 0</span>
+            </div>
+        </div>
+
+        <div id="statusAlert" class="alert mt-3" style="display:none;"></div>
+
+        <form method="post" asp-page-handler="ContinueMigration" id="continueForm" style="display:none;">
+            <button type="submit" class="btn btn-warning mt-2 w-100 fw-bold">
+                ⚠️ Ignore & Continue
+            </button>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+         function checkProgress() {
+            fetch('?handler=Progress')
+                .then(response => response.json())
+                .then(data => {
+                    let alertBox = document.getElementById('statusAlert');
+                    let continueForm = document.getElementById('continueForm');
+                    let progressSection = document.getElementById('progressSection');
+                    let btnStart = document.getElementById('btnStart');
+
+                    if (data.isRunning || data.isCompleted || data.errorMessage) {
+                        progressSection.style.display = 'block';
+                        btnStart.disabled = data.isRunning;
+                    }
+
+                    if (data.isRunning || data.isCompleted) {
+                        document.getElementById('lblTable').innerText = data.currentTable || "-";
+                    
+                        let percent = data.totalCount > 0 ? Math.round((data.processedCount / data.totalCount) * 100) : 0;
+                        let bar = document.getElementById('progressBar');
+                        bar.style.width = percent + '%';
+                        document.getElementById('lblCount').innerText = `${data.processedCount} / ${data.totalCount}`;
+                    }
+
+                    if (data.errorMessage) {
+                        alertBox.className = 'alert alert-danger mt-3';
+                        alertBox.innerText = 'Hata: ' + data.errorMessage;
+                        alertBox.style.display = 'block';
+                    
+                        continueForm.style.display = 'block';
+                        btnStart.disabled = false;
+                    } else if (data.isCompleted) {
+                        alertBox.className = 'alert alert-success mt-3';
+                        alertBox.innerText = 'Taşıma işlemi başarıyla tamamlandı!';
+                        alertBox.style.display = 'block';
+                        continueForm.style.display = 'none';
+                    } else if (data.isRunning) {
+                        continueForm.style.display = 'none';
+                        setTimeout(checkProgress, 1000);
+                    }
+                })
+                .catch(err => {
+                    console.error("Progress durumu çekilemedi:", err);
+                    setTimeout(checkProgress, 2000);
+                });
+        }
+
+        setTimeout(checkProgress, 1000);
+    </script>
+}
